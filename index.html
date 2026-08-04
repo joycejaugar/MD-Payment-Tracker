@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MD Payment Tracker — Live Sync</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root {
+    --ink: #0F1B2B;
+    --slate: #26364A;
+    --slate-soft: #5A6B80;
+    --paper: #F6F7F9;
+    --panel: #FFFFFF;
+    --line: #E2E6EB;
+    --teal: #0E7C7B;
+    --teal-dark: #0A5E5D;
+    --teal-tint: #E6F3F2;
+    --gold: #B9860B;
+    --gold-tint: #FBF1DC;
+    --red: #B3261E;
+    --red-tint: #FBEAE9;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .shell {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    min-height: 100vh;
+  }
+  .sidebar {
+    background: var(--ink);
+    color: #fff;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .brand {
+    padding: 0 8px 20px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    margin-bottom: 16px;
+  }
+  .brand h1 {
+    font-size: 17px;
+    margin: 6px 0 0 0;
+    font-weight: 650;
+  }
+  .navitem {
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.72);
+    transition: background .12s ease, color .12s ease;
+  }
+  .navitem:hover { background: rgba(255, 255, 255, 0.06); }
+  .navitem.active { background: var(--teal); color: #fff; }
+  .main {
+    display: flex;
+    flex-direction: column;
+  }
+  .topbar {
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  .topbar h2 { font-size: 19px; margin: 0; font-weight: 650; }
+  .topbar-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  button {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--slate);
+    cursor: pointer;
+    transition: all .12s ease;
+  }
+  button:hover { border-color: var(--slate-soft); }
+  button.primary {
+    background: var(--teal);
+    border-color: var(--teal);
+    color: #fff;
+  }
+  button.primary:hover { background: var(--teal-dark); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .content {
+    padding: 26px 28px;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .banner {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: var(--teal-tint);
+    border: 1px solid #BFE1DF;
+    color: var(--teal-dark);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 12.5px;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .banner b { font-weight: 700; }
+  .form-group {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    padding: 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 900px) {
+    .form-group { grid-template-columns: repeat(2, 1fr); }
+  }
+  .form-field { display: flex; flex-direction: column; gap: 6px; }
+  .form-field label {
+    font-size: 11.5px;
+    font-weight: 650;
+    color: var(--slate-soft);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .form-field input, .form-field select {
+    font-size: 13.5px;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--ink);
+  }
+  .form-field input:focus, .form-field select:focus {
+    border-color: var(--teal);
+    box-shadow: 0 0 0 3px var(--teal-tint);
+    outline: none;
+  }
+  .form-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .form-msg {
+    font-size: 12.5px;
+    color: var(--slate-soft);
+  }
+  .form-msg.err { color: var(--red); }
+  .form-msg.ok { color: var(--teal-dark); }
+  .loading { text-align: center; padding: 60px; color: var(--slate-soft); }
+  .error { padding: 20px; background: var(--red-tint); border: 1px solid #E8B9B6; color: var(--red); border-radius: 8px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 20px;
+  }
+  thead th {
+    text-align: left;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    color: var(--slate-soft);
+    font-weight: 700;
+    padding: 10px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+  }
+  tbody td { padding: 10px; border-bottom: 1px solid var(--line); }
+  tbody tr:hover { background: #FAFBFC; }
+  .mono { font-family: monospace; }
+  h3 { margin-top: 30px; color: var(--ink); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// ⚠️ IMPORTANT: Replace this with your Google Apps Script deployment URL (the one ending in /exec)
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwzV-UBK4ppl35jtGM-uSuGIp5Ekq9yG07ZU6WZ5pzhClycHxvSczvticiyHkNk1QYt/exec';
+
+// Reads: JSONP via a <script> tag. Avoids CORS entirely since it's not a
+// fetch() call — the browser just loads a script, same as loading any
+// third-party widget.
+function jsonpGet(action, extraParams) {
+  return new Promise(function (resolve, reject) {
+    var cb = 'mdpt_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    var script = document.createElement('script');
+    var timeoutId = setTimeout(function () {
+      cleanup();
+      reject(new Error('Request timed out — check that GAS_URL is correct and the script is deployed with access set to Anyone.'));
+    }, 12000);
+    function cleanup() {
+      clearTimeout(timeoutId);
+      delete window[cb];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cb] = function (data) {
+      cleanup();
+      resolve(data);
+    };
+    var url = APPS_SCRIPT_URL + '?action=' + encodeURIComponent(action) + '&callback=' + cb;
+    if (extraParams) {
+      Object.keys(extraParams).forEach(function (k) {
+        url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(extraParams[k]);
+      });
+    }
+    script.src = url;
+    script.onerror = function () { cleanup(); reject(new Error('Failed to reach the script — check GAS_URL.')); };
+    document.body.appendChild(script);
+  });
+}
+
+// Writes: a real HTML form POST submitted into a hidden iframe. Also
+// avoids CORS, since it's a normal form submission, not a fetch() call.
+function submitViaHiddenForm(action, data) {
+  return new Promise(function (resolve) {
+    var iframeName = 'mdpt_frame_' + Date.now();
+    var iframe = document.createElement('iframe');
+    iframe.name = iframeName;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = APPS_SCRIPT_URL;
+    form.target = iframeName;
+
+    function addField(name, value) {
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = (value === undefined || value === null) ? '' : value;
+      form.appendChild(input);
+    }
+    addField('action', action);
+    Object.keys(data).forEach(function (k) { addField(k, data[k]); });
+
+    document.body.appendChild(form);
+    form.submit();
+
+    setTimeout(function () {
+      try { document.body.removeChild(form); } catch (e) {}
+      try { document.body.removeChild(iframe); } catch (e) {}
+      resolve();
+    }, 1200);
+  });
+}
+
+function App() {
+  const [view, setView] = useState('summary');
+  const [stripeRows, setStripeRows] = useState([]);
+  const [manualRows, setManualRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [formMsg, setFormMsg] = useState('');
+  const [yourName, setYourName] = useState(localStorage.getItem('mdpt_username') || '');
+
+  function handleNameChange(v) {
+    setYourName(v);
+    localStorage.setItem('mdpt_username', v);
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    try {
+      setLoading(true);
+      setError('');
+      const [stripeRes, manualRes] = await Promise.all([
+        jsonpGet('getStripe'),
+        jsonpGet('getManual')
+      ]);
+      setStripeRows((stripeRes && stripeRes.rows) || []);
+      setManualRows((manualRes && manualRes.rows) || []);
+    } catch (err) {
+      setError(`Failed to load data: ${err.message}. Make sure you've deployed the Google Apps Script and updated APPS_SCRIPT_URL in the HTML.`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAddManualEntry(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const entry = {
+      date: formData.get('date'),
+      type: formData.get('type'),
+      medspa: formData.get('medspa') || '',
+      md: formData.get('md'),
+      pc: formData.get('pc') || '',
+      amount: formData.get('amount'),
+      method: formData.get('method') || '',
+      notes: formData.get('notes') || '',
+      added_by: yourName || 'Unknown'
+    };
+
+    if (!entry.date || !entry.type || !entry.md || !entry.amount) {
+      setFormMsg('All fields required');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setFormMsg('Saving to Google Sheets...');
+      await submitViaHiddenForm('addManualEntry', entry);
+      setFormMsg('✓ Saved!');
+      e.target.reset();
+      await loadData();
+      setTimeout(() => setFormMsg(''), 2000);
+    } catch (err) {
+      setFormMsg('Error: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) return <div className="loading">Loading data from Google Sheets...</div>;
+  if (error) return <div className="content"><div className="error">{error}</div></div>;
+
+  const totalStripe = stripeRows.reduce((sum, r) => sum + (parseFloat(r.mdPayment) || 0), 0);
+  const totalManual = manualRows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+
+  return (
+    <div className="shell">
+      <div className="sidebar">
+        <div className="brand">
+          <h1>MD Payment Tracker</h1>
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', marginTop: '8px' }}>Live Sync</div>
+        </div>
+        {[
+          { id: 'summary', label: 'Summary' },
+          { id: 'manual', label: 'Manual Entries' },
+          { id: 'stripelog', label: 'Stripe Log' }
+        ].map(v => (
+          <div 
+            key={v.id} 
+            className={`navitem ${view === v.id ? 'active' : ''}`}
+            onClick={() => setView(v.id)}
+            style={{ cursor: 'pointer' }}
+          >
+            {v.label}
+          </div>
+        ))}
+      </div>
+
+      <div className="main">
+        <div className="topbar">
+          <div>
+            <h2>{view === 'summary' ? 'Summary' : view === 'manual' ? 'Manual Entries' : 'Stripe Payment Log'}</h2>
+          </div>
+          <div className="topbar-controls">
+            <input
+              type="text"
+              placeholder="Your name"
+              value={yourName}
+              onChange={e => handleNameChange(e.target.value)}
+              style={{ fontSize: '12.5px', padding: '7px 10px', borderRadius: '7px', border: '1px solid var(--line)', width: '120px' }}
+            />
+            <button onClick={loadData}>↻ Refresh</button>
+          </div>
+        </div>
+
+        <div className="content">
+          <div className="banner">
+            <span>🔵</span>
+            <span><b>Live sync enabled</b> — All changes saved immediately to Google Sheets. Everyone with this link sees the same data.</span>
+          </div>
+
+          {view === 'summary' && (
+            <div>
+              <h3>2026 Summary</h3>
+              <div style={{ background: 'var(--panel)', padding: '20px', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                <p className="mono">
+                  <strong>Stripe MD Payments:</strong> ${totalStripe.toFixed(2)}<br/>
+                  <strong>Manual Entries:</strong> ${totalManual.toFixed(2)}<br/>
+                  <strong style={{ fontSize: '1.2em' }}>Total: ${(totalStripe + totalManual).toFixed(2)}</strong>
+                </p>
+                <p style={{ marginTop: '20px', fontSize: '12px', color: 'var(--slate-soft)' }}>
+                  Stripe rows: {stripeRows.length} | Manual entries: {manualRows.length}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {view === 'manual' && (
+            <div>
+              <form onSubmit={handleAddManualEntry}>
+                <div className="form-group">
+                  <div className="form-field">
+                    <label>Date</label>
+                    <input type="date" name="date" required />
+                  </div>
+                  <div className="form-field">
+                    <label>Type</label>
+                    <select name="type" required>
+                      <option value="">Select...</option>
+                      <option value="Manual Invoice">Manual Invoice</option>
+                      <option value="OOO Payment - Interim MD">OOO Payment - Interim MD</option>
+                      <option value="OOO Payment - MD">OOO Payment - MD</option>
+                      <option value="Refund / Wire Out">Refund / Wire Out</option>
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label>Amount ($)</label>
+                    <input type="number" name="amount" step="0.01" required />
+                  </div>
+                  <div className="form-field">
+                    <label>Method</label>
+                    <select name="method">
+                      <option value="">Select...</option>
+                      <option value="Wire">Wire</option>
+                      <option value="ACH">ACH</option>
+                      <option value="Check">Check</option>
+                      <option value="Zelle">Zelle</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label>MD Name</label>
+                    <input type="text" name="md" required />
+                  </div>
+                  <div className="form-field">
+                    <label>Medspa</label>
+                    <input type="text" name="medspa" />
+                  </div>
+                  <div className="form-field">
+                    <label>Professional Corporation</label>
+                    <input type="text" name="pc" />
+                  </div>
+                  <div className="form-field" style={{ gridColumn: 'span 4' }}>
+                    <label>Notes</label>
+                    <input type="text" name="notes" />
+                  </div>
+                </div>
+                <div className="form-actions">
+                  <button type="submit" className="primary" disabled={submitting}>
+                    {submitting ? 'Saving...' : 'Add Entry'}
+                  </button>
+                  <div className={`form-msg ${formMsg.includes('✓') ? 'ok' : formMsg.includes('Error') ? 'err' : ''}`}>
+                    {formMsg}
+                  </div>
+                </div>
+              </form>
+
+              <h3>Recent Manual Entries ({manualRows.length})</h3>
+              {manualRows.length === 0 ? (
+                <p style={{ color: 'var(--slate-soft)' }}>No entries yet</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th><th>Type</th><th>MD</th><th>Amount</th><th>Method</th><th>Added By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {manualRows.slice(-20).reverse().map((r, i) => (
+                      <tr key={i}>
+                        <td>{r.date}</td>
+                        <td>{r.type}</td>
+                        <td>{r.md}</td>
+                        <td className="mono">${parseFloat(r.amount || 0).toFixed(2)}</td>
+                        <td>{r.method}</td>
+                        <td className="mono" style={{ fontSize: '11px' }}>{r.added_by || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {view === 'stripelog' && (
+            <div>
+              <h3>Stripe Payment Log ({stripeRows.length} rows)</h3>
+              {stripeRows.length === 0 ? (
+                <p style={{ color: 'var(--slate-soft)' }}>No Stripe payments yet</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Month</th><th>Medspa</th><th>MD</th><th>PC</th>
+                      <th>Fee</th><th>App Fee</th><th>MD Payment</th><th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stripeRows.slice(-20).reverse().map((r, i) => (
+                      <tr key={i}>
+                        <td>{r.month}</td>
+                        <td>{r.medspa}</td>
+                        <td>{r.md}</td>
+                        <td>{r.pc}</td>
+                        <td className="mono">${parseFloat(r.fee || 0).toFixed(2)}</td>
+                        <td className="mono">${parseFloat(r.appFee || 0).toFixed(2)}</td>
+                        <td className="mono"><b>${parseFloat(r.mdPayment || 0).toFixed(2)}</b></td>
+                        <td>{r.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
